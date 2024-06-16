@@ -9,6 +9,8 @@ crate-type = ["cdylib"]
 [dependencies]
 worker = "0.3.0"
 image = "0.25.1"
+imageproc = "0.25.0"
+ab_glyph = "=0.2.26"
 
 [profile.release]
 opt-level = "s" # optimize for size in release builds
