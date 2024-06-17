@@ -2,7 +2,10 @@ use std::io::Cursor;
 
 use ab_glyph::{FontRef, PxScale};
 use image::{Rgb, RgbImage};
-use imageproc::{drawing::{draw_filled_circle_mut, draw_filled_rect_mut, draw_text_mut}, rect::Rect};
+use imageproc::{
+    drawing::{draw_filled_circle_mut, draw_filled_rect_mut, draw_text_mut},
+    rect::Rect,
+};
 use rand::Rng;
 use tracing_subscriber::{
     fmt::{format::Pretty, time::UtcTime},
@@ -59,7 +62,11 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     let canvas_width = 800;
     let canvas_height = 400;
     let mut img = RgbImage::new(canvas_width, canvas_height);
-    draw_filled_rect_mut(&mut img, Rect::at(0, 0).of_size(canvas_width, canvas_height), Rgb([255, 255, 255]));
+    draw_filled_rect_mut(
+        &mut img,
+        Rect::at(0, 0).of_size(canvas_width, canvas_height),
+        Rgb([255, 255, 255]),
+    );
 
     let canvas_width = canvas_width as i32;
     let canvas_height = canvas_height as i32;
@@ -68,8 +75,9 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
     let circle_min_radius: i32 = 6;
     let circle_max_radius: i32 = 10;
     let mut generator = rand::thread_rng();
-
-    for y in (0..=canvas_height).step_by((generator.gen_range(circle_min_radius..circle_max_radius) * 2) as usize) {
+    let mut y = 0;
+    loop {
+        let shift = generator.gen_range(circle_min_radius..circle_max_radius);
         let mut x = 0;
         loop {
             let radius = generator.gen_range(circle_min_radius..circle_max_radius) as i32;
@@ -83,11 +91,16 @@ async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
                 break;
             }
         }
+
+        y += shift + 3;
+        if y >= canvas_height {
+            break;
+        }
     }
 
-    let font = FontRef::try_from_slice(include_bytes!("assets/Nano.ttf")).unwrap();
+    let font = FontRef::try_from_slice(include_bytes!("assets/Design2.ttf")).unwrap();
 
-    let height = 25.0;
+    let height = 55.0;
     let scale = PxScale {
         x: height * 2.7,
         y: height * 4.0,
