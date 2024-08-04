@@ -2,8 +2,14 @@ mod image_gen;
 
 use std::io::Cursor;
 
-use image_gen::ishihara_plate;
-use serde_json::{Map, Value};
+use axum::{
+    response::{Html, IntoResponse},
+    routing::{get, post},
+    Json, Router,
+};
+use image_gen::{ishihara_plate, ColourBlindnessType};
+use serde::Deserialize;
+use tower_service::Service;
 use tracing_subscriber::{
     fmt::{format::Pretty, time::UtcTime},
     layer::SubscriberExt,
@@ -11,6 +17,15 @@ use tracing_subscriber::{
 };
 use tracing_web::{performance_layer, MakeConsoleWriter};
 use worker::*;
+
+#[derive(Deserialize)]
+struct IshiharaImageRequest {
+    pub message: String,
+    pub height: u32,
+    pub width: u32,
+    // pub font_size: f32,
+    pub colourblind_mode: ColourBlindnessType,
+}
 
 // Multiple calls to `init` will cause a panic as a tracing subscriber is already set.
 // So we use the `start` event to initialize our tracing subscriber when the worker starts.
@@ -29,15 +44,36 @@ fn start() {
 }
 
 #[event(fetch)]
-async fn main(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
-    let query_map = req.query::<Map<String, Value>>().unwrap_or_default();
-    let text = query_map.get("text").map(|e| e.as_str().unwrap_or("hello")).unwrap_or("hello");
-    let img = ishihara_plate(text);
+async fn main(
+    req: HttpRequest,
+    _env: Env,
+    _ctx: Context,
+) -> Result<axum::http::Response<axum::body::Body>> {
+    Ok(router().call(req).await?)
+}
+
+fn router() -> Router {
+    Router::new()
+        .route("/", get(home_page))
+        .route("/image_gen", post(generate_ishihara_image))
+}
+
+async fn home_page() -> Html<&'static str> {
+    Html(include_str!("index.html"))
+}
+
+async fn generate_ishihara_image(
+    Json(payload): Json<IshiharaImageRequest>,
+) -> std::result::Result<impl IntoResponse, Html<String>> {
+    let img = ishihara_plate(
+        &payload.message,
+        payload.width,
+        payload.height,
+        payload.colourblind_mode,
+    );
 
     let mut bytes: Vec<u8> = Vec::new();
     img.write_to(&mut Cursor::new(&mut bytes), image::ImageFormat::Png)
-        .map_err(|err| Error::RustError(err.to_string()))?;
-    let mut response = Response::from_bytes(bytes)?;
-    response.headers_mut().set("Content-Type", "image/png")?;
-    Ok(response)
+        .map_err(|err| Html(err.to_string()))?;
+    Ok(([("content-type", "image/png")], bytes))
 }
